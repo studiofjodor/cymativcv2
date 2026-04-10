@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CYMATICS v2 — Sound Made Visible</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body, html {
+      width: 100%; height: 100%;
+      background: #000;
+      overflow: hidden;
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      color: #fff;
+    }
+    #canvas-container { position: fixed; inset: 0; z-index: 0; }
+    canvas { display: block; width: 100% !important; height: 100% !important; }
+
+    /* ── Bottom Bar ── */
+    #ui {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 10;
+      padding: 22px 36px;
+      display: flex; align-items: flex-end; justify-content: space-between; gap: 32px;
+      background: linear-gradient(to top, rgba(0,0,0,0.92) 0%, transparent 100%);
+      pointer-events: none;
+    }
+
+    /* Left */
+    #ui-left { pointer-events: all; display: flex; flex-direction: column; gap: 12px; flex-shrink: 0; }
+    #wordmark { font-size: 10px; font-weight: 500; letter-spacing: 0.35em; text-transform: uppercase; color: rgba(255,255,255,0.25); }
+    #upload-btn {
+      display: inline-flex; align-items: center; gap: 9px;
+      padding: 11px 20px;
+      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 40px; color: rgba(255,255,255,0.72);
+      font-size: 12px; letter-spacing: 0.04em; cursor: pointer;
+      transition: background 200ms, border-color 200ms;
+    }
+    #upload-btn:hover { background: rgba(255,255,255,0.11); border-color: rgba(255,255,255,0.26); }
+    #upload-btn svg { flex-shrink: 0; opacity: 0.6; }
+    #file-input { display: none; }
+    audio#player {
+      pointer-events: all; height: 30px; width: 230px;
+      opacity: 0.5; filter: invert(1); border-radius: 20px;
+    }
+
+    /* ── 6-Slider Grid ── */
+    #controls {
+      pointer-events: all;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px 28px;
+      flex: 1;
+      max-width: 560px;
+    }
+
+    .ctrl-block {
+      display: flex; flex-direction: column; align-items: center; gap: 5px;
+    }
+    .ctrl-label {
+      font-size: 8.5px; letter-spacing: 0.2em; text-transform: uppercase;
+      color: rgba(255,255,255,0.26); text-align: center; white-space: nowrap;
+    }
+    .ctrl-value {
+      font-size: 16px; font-weight: 200; letter-spacing: 0.04em;
+      color: rgba(255,255,255,0.80); font-variant-numeric: tabular-nums;
+      min-width: 34px; text-align: center; line-height: 1;
+    }
+
+    /* Slider */
+    .ctrl-slider {
+      -webkit-appearance: none; appearance: none;
+      width: 120px; height: 2px;
+      background: transparent; outline: none; cursor: pointer;
+    }
+    .ctrl-slider::-webkit-slider-runnable-track {
+      height: 2px; border-radius: 2px; background: rgba(255,255,255,0.09);
+    }
+    .ctrl-slider::-moz-range-track {
+      height: 2px; border-radius: 2px; background: rgba(255,255,255,0.09);
+    }
+    .ctrl-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 13px; height: 13px; border-radius: 50%; background: #fff; margin-top: -5.5px;
+      transition: box-shadow 150ms;
+    }
+    .ctrl-slider::-moz-range-thumb { width:13px; height:13px; border:none; border-radius:50%; background:#fff; }
+
+    /* Per-slider glow colors */
+    #sens-slider::-webkit-slider-thumb   { box-shadow: 0 0 9px rgba(0,200,255,0.9),  0 0 20px rgba(0,200,255,0.4); }
+    #thresh-slider::-webkit-slider-thumb { box-shadow: 0 0 9px rgba(160,80,255,0.9), 0 0 20px rgba(160,80,255,0.4); }
+    #bloom-slider::-webkit-slider-thumb  { box-shadow: 0 0 9px rgba(255,200,0,0.9),  0 0 20px rgba(255,200,0,0.4); }
+    #disp-slider::-webkit-slider-thumb   { box-shadow: 0 0 9px rgba(255,80,100,0.9), 0 0 20px rgba(255,80,100,0.4); }
+    #speed-slider::-webkit-slider-thumb  { box-shadow: 0 0 9px rgba(0,255,160,0.9),  0 0 20px rgba(0,255,160,0.4); }
+    #rot-slider::-webkit-slider-thumb    { box-shadow: 0 0 9px rgba(255,140,0,0.9),  0 0 20px rgba(255,140,0,0.4); }
+    #sens-slider:hover::-webkit-slider-thumb   { box-shadow: 0 0 14px rgba(0,200,255,1.0),  0 0 28px rgba(0,200,255,0.55); }
+    #thresh-slider:hover::-webkit-slider-thumb { box-shadow: 0 0 14px rgba(160,80,255,1.0), 0 0 28px rgba(160,80,255,0.55); }
+    #bloom-slider:hover::-webkit-slider-thumb  { box-shadow: 0 0 14px rgba(255,200,0,1.0),  0 0 28px rgba(255,200,0,0.55); }
+    #disp-slider:hover::-webkit-slider-thumb   { box-shadow: 0 0 14px rgba(255,80,100,1.0), 0 0 28px rgba(255,80,100,0.55); }
+    #speed-slider:hover::-webkit-slider-thumb  { box-shadow: 0 0 14px rgba(0,255,160,1.0),  0 0 28px rgba(0,255,160,0.55); }
+    #rot-slider:hover::-webkit-slider-thumb    { box-shadow: 0 0 14px rgba(255,140,0,1.0),  0 0 28px rgba(255,140,0,0.55); }
+
+    /* Filled track */
+    .track-wrap { position: relative; width: 120px; height: 2px; border-radius: 2px; background: rgba(255,255,255,0.08); margin-bottom: -2px; }
+    .track-fill { position: absolute; top:0; left:0; height:100%; border-radius: 2px; pointer-events: none; transition: width 50ms; }
+    #sens-fill   { background: linear-gradient(to right, #0088cc, #00d4ff); }
+    #thresh-fill { background: linear-gradient(to right, #5533ff, #a040ff); }
+    #bloom-fill  { background: linear-gradient(to right, #cc8800, #ffcc00); }
+    #disp-fill   { background: linear-gradient(to right, #cc2244, #ff4466); }
+    #speed-fill  { background: linear-gradient(to right, #00aa66, #00ffa0); }
+    #rot-fill    { background: linear-gradient(to right, #cc6600, #ff9900); }
+
+    .slider-ticks { display: flex; justify-content: space-between; width: 120px; }
+    .slider-tick  { font-size: 7.5px; letter-spacing: 0.06em; color: rgba(255,255,255,0.16); }
+
+    /* Row divider between grid rows */
+    .row-break { grid-column: 1 / -1; height: 1px; background: rgba(255,255,255,0.06); margin: 2px 0; }
+
+    /* ── Right: Bands ── */
+    #bands { pointer-events: none; display: flex; flex-direction: column; align-items: flex-end; gap: 7px; flex-shrink: 0; }
+    .band-row { display: flex; align-items: center; gap: 10px; }
+    .band-label { font-size: 8.5px; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(255,255,255,0.2); width: 38px; text-align: right; }
+    .band-bar-track { width: 100px; height: 2px; background: rgba(255,255,255,0.07); border-radius: 2px; overflow: hidden; }
+    .band-bar-fill  { height: 100%; border-radius: 2px; width: 0%; transition: width 70ms linear; }
+    #fill-bass { background: #ff3a60; }
+    #fill-mid  { background: #9933ff; }
+    #fill-high { background: #33bfff; }
+
+    /* ── Stereo ── */
+    #stereo {
+      position: fixed; top: 50%; right: 26px; transform: translateY(-50%);
+      z-index: 10; pointer-events: none;
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+    }
+    #stereo-label { font-size: 7.5px; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(255,255,255,0.16); }
+    #stereo-track  { width: 2px; height: 110px; background: rgba(255,255,255,0.07); border-radius: 2px; position: relative; }
+    #stereo-center { width: 6px; height: 1px; background: rgba(255,255,255,0.16); position: absolute; left: -2px; top: 50%; }
+    #stereo-fill   { position: absolute; left:0; right:0; background: linear-gradient(to top, #33bfff, #9933ff); border-radius: 2px; transition: top 90ms, height 90ms; top:50%; height:0%; }
+
+    /* ── Beat Flash ── */
+    #beat-flash {
+      position: fixed; inset: 0; z-index: 2; pointer-events: none; opacity: 0;
+      background: radial-gradient(ellipse at center, rgba(160,60,255,0.15) 0%, transparent 70%);
+      transition: opacity 80ms;
+    }
+
+    /* ── Hint ── */
+    #hint { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; pointer-events: none; z-index: 5; transition: opacity 1.2s; }
+    #hint h1 { font-size: 10px; font-weight: 400; letter-spacing: 0.44em; text-transform: uppercase; color: rgba(255,255,255,0.12); margin-bottom: 9px; }
+    #hint p  { font-size: 9px; letter-spacing: 0.14em; color: rgba(255,255,255,0.07); text-transform: uppercase; }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+
+<div id="canvas-container"></div>
+<div id="beat-flash"></div>
+
+<div id="hint">
+  <h1>Cymatics</h1>
+  <p>Sound Made Visible</p>
+</div>
+
+<div id="stereo">
+  <div id="stereo-label">L &nbsp; R</div>
+  <div id="stereo-track">
+    <div id="stereo-center"></div>
+    <div id="stereo-fill"></div>
+  </div>
+</div>
+
+<div id="ui">
+
+  <!-- Left: Upload + Player -->
+  <div id="ui-left">
+    <span id="wordmark">Cymatics / Sound Made Visible</span>
+    <label id="upload-btn">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      Audio laden (.mp3 / .wav)
+      <input type="file" id="file-input" accept="audio/*">
+    </label>
+    <audio id="player" controls></audio>
+  </div>
+
+  <!-- Center: 6 Sliders in 2×3 Grid -->
+  <div id="controls">
+
+    <!-- Row 1 -->
+    <div class="ctrl-block">
+      <span class="ctrl-label">Sensitivity</span>
+      <div class="ctrl-value" id="sens-display">0.50</div>
+      <div class="track-wrap"><div class="track-fill" id="sens-fill" style="width:50%"></div></div>
+      <input type="range" class="ctrl-slider" id="sens-slider" min="5" max="100" value="50" step="1">
+      <div class="slider-ticks"><span class="slider-tick">Schwach</span><span class="slider-tick">Voll</span></div>
+    </div>
+
+    <div class="ctrl-block">
+      <span class="ctrl-label">Beat Threshold</span>
+      <div class="ctrl-value" id="thresh-display">0.55</div>
+      <div class="track-wrap"><div class="track-fill" id="thresh-fill" style="width:55%"></div></div>
+      <input type="range" class="ctrl-slider" id="thresh-slider" min="10" max="95" value="55" step="1">
+      <div class="slider-ticks"><span class="slider-tick">Sensitiv</span><span class="slider-tick">Hart</span></div>
+    </div>
+
+    <div class="ctrl-block">
+      <span class="ctrl-label">Bloom</span>
+      <div class="ctrl-value" id="bloom-display">1.80</div>
+      <div class="track-wrap"><div class="track-fill" id="bloom-fill" style="width:45%"></div></div>
+      <input type="range" class="ctrl-slider" id="bloom-slider" min="0" max="100" value="45" step="1">
+      <div class="slider-ticks"><span class="slider-tick">Kein</span><span class="slider-tick">Max</span></div>
+    </div>
+
+    <!-- Divider -->
+    <div class="row-break"></div>
+
+    <!-- Row 2 -->
+    <div class="ctrl-block">
+      <span class="ctrl-label">Displacement</span>
+      <div class="ctrl-value" id="disp-display">1.00</div>
+      <div class="track-wrap"><div class="track-fill" id="disp-fill" style="width:50%"></div></div>
+      <input type="range" class="ctrl-slider" id="disp-slider" min="5" max="100" value="50" step="1">
+      <div class="slider-ticks"><span class="slider-tick">Glatt</span><span class="slider-tick">Wild</span></div>
+    </div>
+
+    <div class="ctrl-block">
+      <span class="ctrl-label">Reaction Speed</span>
+      <div class="ctrl-value" id="speed-display">0.12</div>
+      <div class="track-wrap"><div class="track-fill" id="speed-fill" style="width:36%"></div></div>
+      <input type="range" class="ctrl-slider" id="speed-slider" min="2" max="40" value="12" step="1">
+      <div class="slider-ticks"><span class="slider-tick">Träge</span><span class="slider-tick">Direkt</span></div>
+    </div>
+
+    <div class="ctrl-block">
+      <span class="ctrl-label">Rotation</span>
+      <div class="ctrl-value" id="rot-display">0.25</div>
+      <div class="track-wrap"><div class="track-fill" id="rot-fill" style="width:22%"></div></div>
+      <input type="range" class="ctrl-slider" id="rot-slider" min="0" max="100" value="22" step="1">
+      <div class="slider-ticks"><span class="slider-tick">Still</span><span class="slider-tick">Schnell</span></div>
+    </div>
+
+  </div>
+
+  <!-- Right: Frequency Bands -->
+  <div id="bands">
+    <div class="band-row"><span class="band-label">Bass</span><div class="band-bar-track"><div class="band-bar-fill" id="fill-bass"></div></div></div>
+    <div class="band-row"><span class="band-label">Mid</span><div class="band-bar-track"><div class="band-bar-fill" id="fill-mid"></div></div></div>
+    <div class="band-row"><span class="band-label">High</span><div class="band-bar-track"><div class="band-bar-fill" id="fill-high"></div></div></div>
+  </div>
+
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+// ─── Slider state ────────────────────────────────────────────────────────────
+let SENS=0.50, THRESH=0.55, BLOOM=1.80, DISP=1.00, SPEED=0.12, ROT=0.25;
+
+function bindSlider(id,displayId,fillId,onValue){
+  const slider=document.getElementById(id),display=document.getElementById(displayId),fill=document.getElementById(fillId);
+  slider.addEventListener('input',()=>{
+    const v=onValue(parseInt(slider.value));
+    display.textContent=v.toFixed(2);
+    fill.style.width=slider.value+'%';
+  });
+}
+bindSlider('sens-slider',  'sens-display',  'sens-fill',  v=>{SENS  =v/100;       return SENS;});
+bindSlider('thresh-slider','thresh-display','thresh-fill',v=>{THRESH=v/100;       return THRESH;});
+bindSlider('bloom-slider', 'bloom-display', 'bloom-fill', v=>{BLOOM =(v/100)*4.0; return BLOOM;});
+bindSlider('disp-slider',  'disp-display',  'disp-fill',  v=>{DISP  =(v/100)*2.0; return DISP;});
+bindSlider('speed-slider', 'speed-display', 'speed-fill', v=>{SPEED =v/100;       return SPEED;});
+bindSlider('rot-slider',   'rot-display',   'rot-fill',   v=>{ROT   =(v/100)*1.2; return ROT;});
+
+// ─── Audio ───────────────────────────────────────────────────────────────────
+let audioCtx, analyserL, analyserR, dataL, dataR;
+let isReady=false;
+let sSub=0,sBass=0,sLowMid=0,sMid=0,sHighMid=0,sAir=0,sHigh=0,sPan=0,prevBass=0,shockwave=0;
+
+// ── [F1] FFT Texture — 256 bins → sampled per-particle in vertex shader
+const FFT_BINS=256;
+const fftArr=new Uint8Array(FFT_BINS*4); // RGBA for max compatibility
+const fftTex=new THREE.DataTexture(fftArr,FFT_BINS,1,THREE.RGBAFormat,THREE.UnsignedByteType);
+fftTex.minFilter=THREE.LinearFilter;
+fftTex.magFilter=THREE.LinearFilter;
+
+const player=document.getElementById('player');
+const fileInput=document.getElementById('file-input');
+const hint=document.getElementById('hint');
+const beatFlash=document.getElementById('beat-flash');
+
+fileInput.addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f) return;
+  player.src=URL.createObjectURL(f);
+  player.play();
+  hint.style.opacity='0';
+});
+player.addEventListener('play',()=>{ if(!audioCtx) initAudio(); });
+
+function initAudio(){
+  audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+  const src=audioCtx.createMediaElementSource(player);
+  const spl=audioCtx.createChannelSplitter(2);
+  src.connect(spl);
+  analyserL=audioCtx.createAnalyser(); analyserL.fftSize=2048; analyserL.smoothingTimeConstant=0.78;
+  analyserR=audioCtx.createAnalyser(); analyserR.fftSize=2048; analyserR.smoothingTimeConstant=0.78;
+  spl.connect(analyserL,0); spl.connect(analyserR,1);
+  src.connect(audioCtx.destination);
+  dataL=new Uint8Array(analyserL.frequencyBinCount);
+  dataR=new Uint8Array(analyserR.frequencyBinCount);
+  isReady=true;
+}
+
+function avg(arr,a,b){let s=0;for(let i=a;i<b;i++)s+=arr[i];return s/(b-a)/255;}
+function lerp(a,b,t){return a+(b-a)*t;}
+
+// ─── Renderer ────────────────────────────────────────────────────────────────
+const container=document.getElementById('canvas-container');
+const renderer=new THREE.WebGLRenderer({antialias:false,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.setSize(window.innerWidth,window.innerHeight);
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.25;
+container.appendChild(renderer.domElement);
+
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x000000);
+const camera=new THREE.PerspectiveCamera(55,window.innerWidth/window.innerHeight,0.1,500);
+camera.position.set(0,0,32);
+
+const controls=new OrbitControls(camera,renderer.domElement);
+controls.enableDamping=true; controls.dampingFactor=0.04;
+controls.enablePan=false; controls.minDistance=12; controls.maxDistance=80;
+controls.autoRotate=true; controls.autoRotateSpeed=ROT;
+
+// ─── Post-processing ─────────────────────────────────────────────────────────
+const composer=new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene,camera));
+const bloom=new UnrealBloomPass(new THREE.Vector2(window.innerWidth,window.innerHeight),BLOOM,0.42,0.0);
+composer.addPass(bloom);
+
+// ─── Fibonacci Sphere ────────────────────────────────────────────────────────
+const N=80000, pos=new Float32Array(N*3), nor=new Float32Array(N*3), rnd=new Float32Array(N);
+const PHI=Math.PI*(3-Math.sqrt(5)), R0=9.0;
+for(let i=0;i<N;i++){
+  const y=1-(i/(N-1))*2, r=Math.sqrt(Math.max(0,1-y*y)), th=PHI*i;
+  const nx=Math.cos(th)*r, ny=y, nz=Math.sin(th)*r;
+  nor[i*3]=nx; nor[i*3+1]=ny; nor[i*3+2]=nz;
+  pos[i*3]=nx*R0; pos[i*3+1]=ny*R0; pos[i*3+2]=nz*R0;
+  rnd[i]=Math.random();
+}
+const geo=new THREE.BufferGeometry();
+geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+geo.setAttribute('aNormal', new THREE.BufferAttribute(nor,3));
+geo.setAttribute('aRandom', new THREE.BufferAttribute(rnd,1));
+
+// ─── Vertex Shader ── [F1] per-particle FFT texture sampling ─────────────────
+const vert=`
+precision highp float;
+uniform float uTime,uBass,uMid,uHigh,uPan,uShockwave,uBaseR,uDisp;
+uniform sampler2D uFFT;
+attribute vec3 aNormal; attribute float aRandom;
+varying float vDisp,vPan;
+vec3 mod289(vec3 x){return x-floor(x*(1./289.))*289.;}
+vec4 mod289(vec4 x){return x-floor(x*(1./289.))*289.;}
+vec4 permute(vec4 x){return mod289(((x*34.)+1.)*x);}
+vec4 taylorInvSqrt(vec4 r){return 1.79284291400159-0.85373472095314*r;}
+float snoise(vec3 v){
+  const vec2 C=vec2(1./6.,1./3.);const vec4 D=vec4(0.,.5,1.,2.);
+  vec3 i=floor(v+dot(v,C.yyy));vec3 x0=v-i+dot(i,C.xxx);
+  vec3 g=step(x0.yzx,x0.xyz);vec3 l=1.-g;
+  vec3 i1=min(g.xyz,l.zxy);vec3 i2=max(g.xyz,l.zxy);
+  vec3 x1=x0-i1+C.xxx;vec3 x2=x0-i2+C.yyy;vec3 x3=x0-D.yyy;
+  i=mod289(i);
+  vec4 p=permute(permute(permute(i.z+vec4(0.,i1.z,i2.z,1.))+i.y+vec4(0.,i1.y,i2.y,1.))+i.x+vec4(0.,i1.x,i2.x,1.));
+  float n_=.142857142857;vec3 ns=n_*D.wyz-D.xzx;
+  vec4 j=p-49.*floor(p*ns.z*ns.z);vec4 x_=floor(j*ns.z);vec4 y_=floor(j-7.*x_);
+  vec4 x=x_*ns.x+ns.yyyy;vec4 y=y_*ns.x+ns.yyyy;vec4 h=1.-abs(x)-abs(y);
+  vec4 b0=vec4(x.xy,y.xy);vec4 b1=vec4(x.zw,y.zw);
+  vec4 s0=floor(b0)*2.+1.;vec4 s1=floor(b1)*2.+1.;
+  vec4 sh=-step(h,vec4(0.));
+  vec4 a0=b0.xzyw+s0.xzyw*sh.xxyy;vec4 a1=b1.xzyw+s1.xzyw*sh.zzww;
+  vec3 p0=vec3(a0.xy,h.x);vec3 p1=vec3(a0.zw,h.y);vec3 p2=vec3(a1.xy,h.z);vec3 p3=vec3(a1.zw,h.w);
+  vec4 norm2=taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));
+  p0*=norm2.x;p1*=norm2.y;p2*=norm2.z;p3*=norm2.w;
+  vec4 m=max(.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.);m=m*m;
+  return 42.*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));
+}
+void main(){
+  vec3 n=normalize(aNormal); float t=uTime*0.22;
+  // [F1] Map particle vertical position to a frequency bin
+  float freqCoord=pow(clamp(n.y*0.5+0.5,0.0,1.0),1.5)*0.75;
+  float fftSample=texture2D(uFFT,vec2(freqCoord,0.5)).r;
+  float n1=snoise(n*(0.85+uMid*1.3)+vec3(t,t*0.65,t*0.4));
+  float n2=snoise(n*(2.1+uHigh*1.8)+vec3(-t*0.55,t*1.1,aRandom*4.));
+  float n3=snoise(n*4.5+vec3(aRandom,t*0.3,t*0.8));
+  // fftSample adds per-particle frequency-specific displacement
+  float disp=(uBass*5.8+n1*uMid*4.2+n2*uHigh*2.8+n3*0.3+fftSample*3.5)*uDisp;
+  float waveFront=1.0-uShockwave;
+  disp+=smoothstep(0.2,0.0,abs(n.y-(waveFront*2.-1.)))*uShockwave*7.0*uDisp;
+  disp+=uPan*2.8*n.x;
+  vDisp=disp; vPan=uPan;
+  vec3 p=n*(uBaseR+disp);
+  vec4 mv=modelViewMatrix*vec4(p,1.);
+  float energy=0.45+uBass*1.6+uHigh*1.3+fftSample*1.0;
+  gl_PointSize=clamp(energy*(300./-mv.z),0.4,6.5);
+  gl_Position=projectionMatrix*mv;
+}`;
+
+const frag=`
+precision highp float;
+uniform float uSub,uBass,uLowMid,uMid,uHighMid,uAir,uPan;
+varying float vDisp,vPan;
+void main(){
+  vec2 uv=gl_PointCoord-0.5; float d=length(uv);
+  if(d>0.5)discard;
+  float alpha=smoothstep(0.5,0.06,d);
+  float t=clamp(vDisp/9.5,0.,1.);
+  vec3 cSub    =vec3(0.30,0.00,0.50);
+  vec3 cBass   =vec3(0.85,0.04,0.30);
+  vec3 cLowMid =vec3(0.95,0.38,0.00);
+  vec3 cMid    =vec3(0.05,0.80,0.40);
+  vec3 cHighMid=vec3(0.04,0.48,0.95);
+  vec3 cAir    =vec3(0.85,0.95,1.00);
+  float total=uSub+uBass+uLowMid+uMid+uHighMid+uAir+0.001;
+  vec3 bandCol=(cSub*uSub+cBass*uBass+cLowMid*uLowMid+cMid*uMid+cHighMid*uHighMid+cAir*uAir)/total;
+  vec3 restCol=vec3(0.03,0.03,0.15);
+  vec3 col=mix(restCol,bandCol,smoothstep(0.0,0.6,t));
+  col=mix(col,vec3(1.0),smoothstep(0.75,1.0,t)*0.7);
+  if(vPan<-0.1) col=mix(col,vec3(0.0,0.25,0.9),min(-vPan*0.5,0.38));
+  else if(vPan>0.1) col=mix(col,vec3(1.0,0.38,0.0),min(vPan*0.5,0.38));
+  gl_FragColor=vec4(col,alpha*0.90);
+}`;
+
+const mat=new THREE.ShaderMaterial({
+  vertexShader:vert, fragmentShader:frag,
+  transparent:true, depthWrite:false, blending:THREE.AdditiveBlending,
+  uniforms:{
+    uTime:{value:0}, uPan:{value:0}, uShockwave:{value:0}, uBaseR:{value:R0}, uDisp:{value:1.0},
+    uSub:{value:0}, uBass:{value:0}, uLowMid:{value:0}, uMid:{value:0}, uHighMid:{value:0}, uAir:{value:0}, uHigh:{value:0},
+    uFFT:{value:fftTex}
+  }
+});
+scene.add(new THREE.Points(geo,mat));
+
+// ─── [F5] Transient Particle System ──────────────────────────────────────────
+const T_COUNT=500;
+const tPos =new Float32Array(T_COUNT*3);
+const tNorm=new Float32Array(T_COUNT*3);
+const tLife=new Float32Array(T_COUNT); // starts at 0 (dead)
+const tGeo=new THREE.BufferGeometry();
+const tPosAttr =new THREE.BufferAttribute(tPos,3);  tPosAttr.usage=THREE.DynamicDrawUsage;
+const tNormAttr=new THREE.BufferAttribute(tNorm,3);
+const tLifeAttr=new THREE.BufferAttribute(tLife,1); tLifeAttr.usage=THREE.DynamicDrawUsage;
+tGeo.setAttribute('position',tPosAttr);
+tGeo.setAttribute('aNorm',   tNormAttr);
+tGeo.setAttribute('aLife',   tLifeAttr);
+
+const tVert=`
+precision highp float;
+attribute float aLife;
+attribute vec3 aNorm;
+varying float vLife;
+void main(){
+  vLife=aLife;
+  float age=1.0-aLife;
+  // fly outward: fast start, slow end
+  vec3 p=position+aNorm*age*20.0*(1.0-age*0.5);
+  vec4 mv=modelViewMatrix*vec4(p,1.0);
+  gl_PointSize=clamp((0.2+aLife*0.8)*200.0/-mv.z,0.3,7.0);
+  gl_Position=projectionMatrix*mv;
+}`;
+
+const tFrag=`
+precision highp float;
+varying float vLife;
+void main(){
+  vec2 uv=gl_PointCoord-0.5;
+  if(length(uv)>0.5)discard;
+  float alpha=smoothstep(0.5,0.04,length(uv))*vLife*vLife;
+  // white at birth → magenta/pink as it fades
+  vec3 col=mix(vec3(1.0,0.18,0.52),vec3(1.0,0.96,1.0),vLife);
+  gl_FragColor=vec4(col,alpha*0.88);
+}`;
+
+const tMat=new THREE.ShaderMaterial({
+  vertexShader:tVert, fragmentShader:tFrag,
+  transparent:true, depthWrite:false, blending:THREE.AdditiveBlending
+});
+const tMesh=new THREE.Points(tGeo,tMat);
+scene.add(tMesh);
+
+function spawnTransients(){
+  for(let i=0;i<T_COUNT;i++){
+    const theta=Math.random()*Math.PI*2;
+    const phi=Math.acos(2*Math.random()-1);
+    const nx=Math.sin(phi)*Math.cos(theta);
+    const ny=Math.cos(phi);
+    const nz=Math.sin(phi)*Math.sin(theta);
+    tPos[i*3]=nx*R0; tPos[i*3+1]=ny*R0; tPos[i*3+2]=nz*R0;
+    tNorm[i*3]=nx;   tNorm[i*3+1]=ny;   tNorm[i*3+2]=nz;
+    tLife[i]=1.0;
+  }
+  tPosAttr.needsUpdate=true;
+  tNormAttr.needsUpdate=true;
+  tLifeAttr.needsUpdate=true;
+}
+
+// ─── UI refs ─────────────────────────────────────────────────────────────────
+const fillB=document.getElementById('fill-bass');
+const fillM=document.getElementById('fill-mid');
+const fillH=document.getElementById('fill-high');
+const sFill=document.getElementById('stereo-fill');
+
+window.addEventListener('resize',()=>{
+  camera.aspect=window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth,window.innerHeight);
+  composer.setSize(window.innerWidth,window.innerHeight);
+});
+
+// ─── Beat flash ──────────────────────────────────────────────────────────────
+let flashTO=null;
+function triggerFlash(){
+  beatFlash.style.opacity='1';
+  if(flashTO) clearTimeout(flashTO);
+  flashTO=setTimeout(()=>{beatFlash.style.opacity='0';},80);
+}
+
+// ─── Animate ─────────────────────────────────────────────────────────────────
+const clock=new THREE.Clock();
+function tick(){
+  requestAnimationFrame(tick);
+  const el=clock.getElapsedTime();
+  let rawSub=0,rawBass=0,rawLowMid=0,rawMid=0,rawHighMid=0,rawAir=0,rawHigh=0,pan=0;
+
+  if(isReady){
+    analyserL.getByteFrequencyData(dataL);
+    analyserR.getByteFrequencyData(dataR);
+    const comb=new Uint8Array(dataL.length);
+    let tL=0,tR=0;
+    for(let i=0;i<comb.length;i++){comb[i]=(dataL[i]+dataR[i])*0.5;tL+=dataL[i];tR+=dataR[i];}
+
+    rawSub    =avg(comb,  1,  5);
+    rawBass   =avg(comb,  5, 12);
+    rawLowMid =avg(comb, 12, 24);
+    rawMid    =avg(comb, 24, 80);
+    rawHighMid=avg(comb, 80,185);
+    rawAir    =avg(comb,185,350);
+    rawHigh   =(rawHighMid+rawAir)*0.5;
+    const tot=tL+tR; pan=tot>0?(tR-tL)/tot:0;
+
+    // Kick trigger — narrow sub-bass band
+    const kickBand=avg(comb,1,2);
+    if(kickBand>THRESH && prevBass<=THRESH){
+      shockwave=1.0;
+      triggerFlash();
+      spawnTransients(); // [F5]
+    }
+    prevBass=kickBand;
+
+    // [F1] Fill FFT texture with stereo-mixed spectrum
+    for(let i=0;i<FFT_BINS;i++){
+      const v=(dataL[i]/2+dataR[i]/2)|0;
+      fftArr[i*4]=v; fftArr[i*4+1]=v; fftArr[i*4+2]=v; fftArr[i*4+3]=255;
+    }
+    fftTex.needsUpdate=true;
+  }
+
+  sSub    =lerp(sSub,    rawSub,    SPEED);
+  sBass   =lerp(sBass,   rawBass,   SPEED);
+  sLowMid =lerp(sLowMid, rawLowMid, SPEED);
+  sMid    =lerp(sMid,    rawMid,    SPEED);
+  sHighMid=lerp(sHighMid,rawHighMid,SPEED);
+  sAir    =lerp(sAir,    rawAir,    Math.min(SPEED*1.2,0.5));
+  sHigh   =(sHighMid+sAir)*0.5;
+  sPan    =lerp(sPan,    pan,       0.07);
+  shockwave*=0.93;
+
+  const scale=v=>Math.min(v*SENS*2.0,1.0);
+  mat.uniforms.uSub.value     =scale(sSub);
+  mat.uniforms.uBass.value    =scale(sBass);
+  mat.uniforms.uLowMid.value  =scale(sLowMid);
+  mat.uniforms.uMid.value     =scale(sMid);
+  mat.uniforms.uHighMid.value =scale(sHighMid);
+  mat.uniforms.uAir.value     =scale(sAir);
+  mat.uniforms.uPan.value     =sPan;
+  mat.uniforms.uShockwave.value=shockwave;
+  mat.uniforms.uDisp.value    =DISP;
+  mat.uniforms.uTime.value    =el;
+  mat.uniforms.uHigh.value    =(scale(sHighMid)+scale(sAir))*0.5;
+
+  bloom.strength=BLOOM*(1.0+scale(sBass)*2.0);
+  bloom.radius  =0.30+scale(sMid)*0.32;
+
+  controls.autoRotateSpeed=ROT+scale(sBass)*1.6;
+  controls.update();
+
+  // [F5] Decay transient lifetimes each frame
+  let tAny=false;
+  for(let i=0;i<T_COUNT;i++){
+    if(tLife[i]>0){
+      tLife[i]=Math.max(0,tLife[i]-0.022);
+      tAny=true;
+    }
+  }
+  if(tAny) tLifeAttr.needsUpdate=true;
+
+  fillB.style.width=(sBass*100).toFixed(1)+'%';
+  fillM.style.width=(sMid *100).toFixed(1)+'%';
+  fillH.style.width=(sHigh*100).toFixed(1)+'%';
+
+  const barH=Math.abs(sPan)*48;
+  if(sPan>=0){sFill.style.top=(50-barH)+'%';sFill.style.height=barH+'%';}
+  else       {sFill.style.top='50%';        sFill.style.height=barH+'%';}
+
+  composer.render();
+}
+tick();
+</script>
+</body>
+</html>
