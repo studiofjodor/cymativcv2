@@ -28,6 +28,20 @@
     /* Left */
     #ui-left { pointer-events: all; display: flex; flex-direction: column; gap: 12px; flex-shrink: 0; }
     #wordmark { font-size: 10px; font-weight: 500; letter-spacing: 0.35em; text-transform: uppercase; color: rgba(255,255,255,0.25); }
+
+    #audio-buttons { display: flex; gap: 10px; }
+
+    #demo-btn {
+      display: inline-flex; align-items: center; gap: 9px;
+      padding: 11px 20px;
+      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 40px; color: rgba(255,255,255,0.72);
+      font-size: 12px; letter-spacing: 0.04em; cursor: pointer;
+      transition: background 200ms, border-color 200ms;
+    }
+    #demo-btn:hover { background: rgba(255,255,255,0.11); border-color: rgba(255,255,255,0.26); }
+    #demo-btn svg { flex-shrink: 0; opacity: 0.6; }
+
     #upload-btn {
       display: inline-flex; align-items: center; gap: 9px;
       padding: 11px 20px;
@@ -181,15 +195,26 @@
   <!-- Left: Upload + Player -->
   <div id="ui-left">
     <span id="wordmark">Cymatics / Sound Made Visible</span>
-    <label id="upload-btn">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-        <polyline points="17 8 12 3 7 8"/>
-        <line x1="12" y1="3" x2="12" y2="15"/>
-      </svg>
-      Audio laden (.mp3 / .wav)
-      <input type="file" id="file-input" accept="audio/*">
-    </label>
+
+    <div id="audio-buttons">
+      <button id="demo-btn">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <polygon points="5 3 19 12 5 21 5 3"></polygon>
+        </svg>
+        Demo Track
+      </button>
+
+      <label id="upload-btn">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        Audio laden (.mp3 / .wav)
+        <input type="file" id="file-input" accept="audio/*">
+      </label>
+    </div>
+
     <audio id="player" controls></audio>
   </div>
 
@@ -308,6 +333,20 @@ fileInput.addEventListener('change',e=>{
   player.play();
   hint.style.opacity='0';
 });
+
+document.getElementById('demo-btn').addEventListener('click', async () => {
+  if (!audioCtx) initAudio();
+  player.crossOrigin = 'anonymous';
+  player.src = 'https://fjodor.studio/library/demolong(lowdb).mp3';
+  hint.style.opacity = '0';
+  try {
+    await player.play();
+    if (audioCtx.state === 'suspended') await audioCtx.resume();
+  } catch (err) {
+    console.error('Demo error:', err);
+  }
+});
+
 player.addEventListener('play',()=>{ if(!audioCtx) initAudio(); });
 
 function initAudio(){
