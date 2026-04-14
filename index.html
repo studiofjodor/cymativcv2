@@ -337,7 +337,7 @@ fileInput.addEventListener('change',e=>{
 document.getElementById('demo-btn').addEventListener('click', async () => {
   if (!audioCtx) initAudio();
   player.crossOrigin = 'anonymous';
-  player.src = 'https://fjodor.studio/library/demolong(lowdb).mp3';
+  player.src='./demolong(lowdb).mp3';
   hint.style.opacity = '0';
   try {
     await player.play();
